@@ -124,12 +124,22 @@ function do_paru
     run_cmd "paru -Syu" paru -Syu --noconfirm
 end
 
+function do_flatpak
+    header "Flatpak: Update aplikasi Flatpak"
+    if not tool_exists flatpak
+        warn "flatpak tidak terinstal, melewati..."
+        return 0
+    end
+    run_cmd "flatpak update" flatpak update -y
+end
+
 function do_cachy_update
-    header "Metode 3: cachy-update (Resmi + AUR + Perawatan)"
+    header "Metode 3: cachy-update (Resmi + AUR + Perawatan + Flatpak)"
     if not tool_exists cachy-update
         error "cachy-update tidak terinstal."
         return 1
     end
+    do_flatpak
     run_cmd "cachy-update" cachy-update
 end
 
@@ -174,6 +184,14 @@ function do_all
         warn "shelly tidak terinstal, melewati..."
     end
 
+    if tool_exists flatpak
+        do_flatpak; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "flatpak tidak terinstal, melewati..."
+    end
+
     if tool_exists cachy-update
         do_cachy_update; or set failed (math $failed + 1)
         set ran_any true
@@ -192,6 +210,25 @@ function do_all
         success "Semua metode pembaruan berhasil dijalankan."
     else
         warn "$failed metode mengalami kegagalan (lihat log di atas)."
+    end
+end
+
+# ── Mode reload: hapus db.lck + rating mirror ────────────────────────────────
+function do_reload
+    header "Mode 7: Reload — Hapus db.lck + Rating Mirror"
+
+    if tool_exists pacman
+        info "Menghapus /var/lib/pacman/db.lck..."
+        run_cmd "Hapus db.lck" $SUDO rm -f /var/lib/pacman/db.lck
+    else
+        warn "pacman tidak ditemukan, melewati penghapusan db.lck..."
+    end
+
+    if tool_exists cachyos-rate-mirrors
+        info "Menjalankan cachyos-rate-mirrors..."
+        run_cmd "cachyos-rate-mirrors" $SUDO cachyos-rate-mirrors
+    else
+        warn "cachyos-rate-mirrors tidak terinstal, melewati..."
     end
 end
 
@@ -229,6 +266,7 @@ function show_menu
     printf "  $BOLD 4)$b shelly upgrade all  — Resmi + AUR + Flatpak\n"
     printf "  $BOLD 5)$b Semua               — Jalankan semua tool yang tersedia\n"
     printf "  $BOLD 6)$b Auto-detect         — Pilih tool terbaik yang tersedia\n"
+    printf "  $BOLD 7)$b Reload              — Hapus db.lck + rating mirror\n"
     printf "\n"
     printf "  $BOLD 0)$b Keluar\n"
     printf "\n"
@@ -252,6 +290,8 @@ function interactive_menu
                 do_all
             case 6
                 auto_detect
+            case 7
+                do_reload
             case 0
                 info "Sampai jumpa!"
                 exit 0
@@ -325,6 +365,7 @@ function usage
     printf "  4, shelly     Jalankan shelly upgrade all (resmi + AUR + Flatpak)\n"
     printf "  5, all        Jalankan SEMUA tool yang tersedia secara berurutan\n"
     printf "  6, auto       Deteksi otomatis tool terbaik (hanya jalankan 1)\n"
+    printf "  7, reload     Hapus db.lck + rating mirror CachyOS\n"
     printf "  h, help       Tampilkan bantuan ini\n\n"
     printf "Tanpa argumen → mode interaktif (menu).\n"
 end
@@ -348,6 +389,8 @@ function main
             check_internet; do_all; post_update
         case 6 a auto
             check_internet; auto_detect; post_update
+        case 7 r reload
+            do_reload; post_update
         case h --help -h
             usage; exit 0
         case ''
