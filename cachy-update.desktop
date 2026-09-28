@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=CachyOS Update
+Name[id]=Pembaruan CachyOS
+Comment=Script pembaruan sistem CachyOS (pacman, paru, cachy-update, shelly)
+Comment[id]=Script pembaruan sistem CachyOS (pacman, paru, cachy-update, shelly)
+Icon=system-software-update
+Exec=konsole --title "CachyOS Update" -e fish -c "/home/rasyidk/vscode/cachy-always-upgrade/update.fish all"
+Terminal=true
+Categories=System;PackageManager;Settings;
+Keywords=update;upgrade;pacman;paru;aur;cachyos;shelly;
+X-GNOME-SingleWindow=true
+StartupNotify=true
