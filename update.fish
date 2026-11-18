@@ -9,10 +9,12 @@
 #   4. shelly upgrade all  → Resmi + AUR + Flatpak (manajer paket grafis CachyOS)
 #   5. all                 → Jalankan semua tool yang tersedia secara berurutan
 #   6. auto                → Deteksi otomatis: cachy-update > shelly > paru > pacman
+#   7. reload              → Hapus db.lck + rating mirror
+#   8. lang                → Update paket global: npm, pnpm, yarn, bun, pipx, gem
 #
 # Penggunaan:
 #   ./update.fish              → Mode interaktif (pilih metode)
-#   ./update.fish [1|2|3|4|5|6] → Langsung jalankan metode tertentu
+#   ./update.fish [1|2|3|4|5|6|7|8] → Langsung jalankan metode tertentu
 #
 
 # ── Warna output ──────────────────────────────────────────────────────────────
@@ -143,6 +145,85 @@ function do_cachy_update
     run_cmd "cachy-update" cachy-update
 end
 
+# ── Paket global lintas bahasa (Node, Python, Ruby, dll.) ─────────────────────
+function do_lang_packages
+    header "Paket Global: npm / pnpm / yarn / bun / pipx / gem"
+    printf "%b  Hanya tool yang terinstal yang akan dijalankan.%b\n\n" $YELLOW $NC
+
+    set -l ran_any false
+    set -l failed 0
+
+    if tool_exists npm
+        info "npm ditemukan → npm update -g"
+        run_cmd "npm update -g" $SUDO npm update -g; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "npm tidak terinstal, melewati..."
+    end
+
+    if tool_exists pnpm
+        info "pnpm ditemukan → pnpm update -g"
+        run_cmd "pnpm update -g" pnpm update -g; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "pnpm tidak terinstal, melewati..."
+    end
+
+    if tool_exists yarn
+        set -l yarn_major (yarn --version 2>/dev/null | string split -f1 '.')
+        if test "$yarn_major" = "1"
+            info "yarn (classic) ditemukan → yarn global upgrade"
+            run_cmd "yarn global upgrade" yarn global upgrade; or set failed (math $failed + 1)
+        else
+            warn "yarn modern terdeteksi (v$yarn_major). Gunakan 'yarn up' di proyek, melewati..."
+        end
+        set ran_any true
+        echo
+    else
+        warn "yarn tidak terinstal, melewati..."
+    end
+
+    if tool_exists bun
+        info "bun ditemukan → bun update -g"
+        run_cmd "bun update -g" bun update -g; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "bun tidak terinstal, melewati..."
+    end
+
+    if tool_exists pipx
+        info "pipx ditemukan → pipx upgrade-all"
+        run_cmd "pipx upgrade-all" pipx upgrade-all; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "pipx tidak terinstal, melewati..."
+    end
+
+    if tool_exists gem
+        info "gem ditemukan → gem update"
+        run_cmd "gem update" $SUDO gem update --no-document; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "gem tidak terinstal, melewati..."
+    end
+
+    if test "$ran_any" = false
+        warn "Tidak ada package manager global yang terinstal, melewati..."
+        return 0
+    end
+
+    if test $failed -eq 0
+        success "Semua package manager global berhasil di-update."
+    else
+        warn "$failed package manager mengalami kegagalan (lihat log di atas)."
+    end
+end
+
 function do_shelly
     header "Metode 4: shelly upgrade all (Resmi + AUR + Flatpak)"
     if not tool_exists shelly
@@ -199,6 +280,10 @@ function do_all
     else
         warn "cachy-update tidak terinstal, melewati..."
     end
+
+    do_lang_packages
+    set ran_any true
+    echo
 
     if test "$ran_any" = false
         error "Tidak ada tool pembaruan yang tersedia di sistem."
@@ -267,6 +352,7 @@ function show_menu
     printf "  $BOLD 5)$b Semua               — Jalankan semua tool yang tersedia\n"
     printf "  $BOLD 6)$b Auto-detect         — Pilih tool terbaik yang tersedia\n"
     printf "  $BOLD 7)$b Reload              — Hapus db.lck + rating mirror\n"
+    printf "  $BOLD 8)$b Paket global        — npm, pnpm, yarn, bun, pipx, gem\n"
     printf "\n"
     printf "  $BOLD 0)$b Keluar\n"
     printf "\n"
@@ -275,7 +361,7 @@ end
 function interactive_menu
     while true
         show_menu
-        read -P "  Pilih metode [0-6]: " choice
+        read -P "  Pilih metode [0-8]: " choice
         printf "\n"
         switch $choice
             case 1
@@ -292,6 +378,8 @@ function interactive_menu
                 auto_detect
             case 7
                 do_reload
+            case 8
+                do_lang_packages
             case 0
                 info "Sampai jumpa!"
                 exit 0
@@ -366,6 +454,7 @@ function usage
     printf "  5, all        Jalankan SEMUA tool yang tersedia secara berurutan\n"
     printf "  6, auto       Deteksi otomatis tool terbaik (hanya jalankan 1)\n"
     printf "  7, reload     Hapus db.lck + rating mirror CachyOS\n"
+    printf "  8, lang       Update paket global npm, pnpm, yarn, bun, pipx, gem\n"
     printf "  h, help       Tampilkan bantuan ini\n\n"
     printf "Tanpa argumen → mode interaktif (menu).\n"
 end
@@ -391,6 +480,8 @@ function main
             check_internet; auto_detect; post_update
         case 7 r reload
             do_reload; post_update
+        case 8 lang
+            check_internet; do_lang_packages; post_update
         case h --help -h
             usage; exit 0
         case ''
