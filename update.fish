@@ -11,10 +11,11 @@
 #   6. auto                → Deteksi otomatis: cachy-update > shelly > paru > pacman
 #   7. reload              → Hapus db.lck + rating mirror
 #   8. lang                → Update paket global: npm, pnpm, yarn, bun, pipx, gem
+#   9. extra               → Update package manager lain: brew, snap, cargo, nix
 #
 # Penggunaan:
 #   ./update.fish              → Mode interaktif (pilih metode)
-#   ./update.fish [1|2|3|4|5|6|7|8] → Langsung jalankan metode tertentu
+#   ./update.fish [1|2|3|4|5|6|7|8|9] → Langsung jalankan metode tertentu
 #
 
 # ── Warna output ──────────────────────────────────────────────────────────────
@@ -224,6 +225,71 @@ function do_lang_packages
     end
 end
 
+# ── Package manager lain yang sejenis (Homebrew, Snap, Cargo, Nix) ──────────
+function do_other_packages
+    header "Paket Lain: brew / snap / cargo / nix"
+    printf "%b  Hanya tool yang terinstal yang akan dijalankan.%b\n\n" $YELLOW $NC
+
+    set -l ran_any false
+    set -l failed 0
+
+    if tool_exists brew
+        info "brew ditemukan → brew update && brew upgrade && brew cleanup"
+        run_cmd "brew update" brew update; or set failed (math $failed + 1)
+        run_cmd "brew upgrade" brew upgrade; or set failed (math $failed + 1)
+        run_cmd "brew cleanup" brew cleanup; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "brew tidak terinstal, melewati..."
+    end
+
+    if tool_exists snap
+        info "snap ditemukan → snap refresh"
+        run_cmd "snap refresh" $SUDO snap refresh; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "snap tidak terinstal, melewati..."
+    end
+
+    if tool_exists cargo
+        if tool_exists cargo-install-update
+            info "cargo-update ditemukan → cargo install-update -a"
+            run_cmd "cargo install-update -a" cargo install-update -a; or set failed (math $failed + 1)
+            set ran_any true
+            echo
+        else
+            warn "cargo-update tidak terinstal (cargo install cargo-update), melewati..."
+            set ran_any true
+            echo
+        end
+    else
+        warn "cargo tidak terinstal, melewati..."
+    end
+
+    if tool_exists nix-channel
+        info "nix ditemukan → nix-channel --update && nix-env -u"
+        run_cmd "nix-channel --update" nix-channel --update; or set failed (math $failed + 1)
+        run_cmd "nix-env -u" nix-env -u --always; or set failed (math $failed + 1)
+        set ran_any true
+        echo
+    else
+        warn "nix tidak terinstal, melewati..."
+    end
+
+    if test "$ran_any" = false
+        warn "Tidak ada package manager tambahan yang terinstal, melewati..."
+        return 0
+    end
+
+    if test $failed -eq 0
+        success "Semua package manager tambahan berhasil di-update."
+    else
+        warn "$failed package manager mengalami kegagalan (lihat log di atas)."
+    end
+end
+
 function do_shelly
     header "Metode 4: shelly upgrade all (Resmi + AUR + Flatpak)"
     if not tool_exists shelly
@@ -282,6 +348,10 @@ function do_all
     end
 
     do_lang_packages
+    set ran_any true
+    echo
+
+    do_other_packages
     set ran_any true
     echo
 
@@ -353,6 +423,7 @@ function show_menu
     printf "  $BOLD 6)$b Auto-detect         — Pilih tool terbaik yang tersedia\n"
     printf "  $BOLD 7)$b Reload              — Hapus db.lck + rating mirror\n"
     printf "  $BOLD 8)$b Paket global        — npm, pnpm, yarn, bun, pipx, gem\n"
+    printf "  $BOLD 9)$b Paket lain          — brew, snap, cargo, nix\n"
     printf "\n"
     printf "  $BOLD 0)$b Keluar\n"
     printf "\n"
@@ -361,7 +432,7 @@ end
 function interactive_menu
     while true
         show_menu
-        read -P "  Pilih metode [0-8]: " choice
+        read -P "  Pilih metode [0-9]: " choice
         printf "\n"
         switch $choice
             case 1
@@ -380,6 +451,8 @@ function interactive_menu
                 do_reload
             case 8
                 do_lang_packages
+            case 9
+                do_other_packages
             case 0
                 info "Sampai jumpa!"
                 exit 0
@@ -455,6 +528,7 @@ function usage
     printf "  6, auto       Deteksi otomatis tool terbaik (hanya jalankan 1)\n"
     printf "  7, reload     Hapus db.lck + rating mirror CachyOS\n"
     printf "  8, lang       Update paket global npm, pnpm, yarn, bun, pipx, gem\n"
+    printf "  9, extra      Update brew, snap, cargo, nix\n"
     printf "  h, help       Tampilkan bantuan ini\n\n"
     printf "Tanpa argumen → mode interaktif (menu).\n"
 end
@@ -482,6 +556,8 @@ function main
             do_reload; post_update
         case 8 lang
             check_internet; do_lang_packages; post_update
+        case 9 extra other
+            check_internet; do_other_packages; post_update
         case h --help -h
             usage; exit 0
         case ''
